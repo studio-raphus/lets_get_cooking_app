@@ -1,0 +1,92 @@
+// lib/main.dart
+
+import 'package:flutter/material.dart';
+import 'package:lets_get_cooking_app/providers/grocery_provider.dart';
+import 'package:lets_get_cooking_app/screens/home_screen.dart';
+import 'package:lets_get_cooking_app/screens/welcome_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'providers/premium_provider.dart';
+import 'providers/recipe_provider.dart';
+import 'theme/app_theme.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: 'https://behbfpdihejxfyztzhjo.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlaGJmcGRpaGVqeGZ5enR6aGpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNjg0NjcsImV4cCI6MjA4NTk0NDQ2N30.n1UbB7FcYI8p2WPiL8L2RxYMkz9Km8A0VkVBhOTGL78',
+  );
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PremiumProvider()),
+        ChangeNotifierProvider(create: (_) => RecipeProvider()),
+        ChangeNotifierProvider(create: (_) => GroceryProvider()),
+      ],
+      child: MaterialApp(
+        title: 'Recipe Action',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+          home: const AuthWrapper(),
+      ),
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  final _supabase = Supabase.instance.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToAuthChanges();
+  }
+
+  void _listenToAuthChanges() {
+    _supabase.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (session != null && mounted) {
+        _initializeData(session.user.id);
+      }
+    });
+  }
+
+  Future<void> _initializeData(String userId) async {
+    // Reload providers with the real User ID
+    context.read<PremiumProvider>().initialize(userId);
+    context.read<RecipeProvider>().loadRecipes();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: _supabase.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        // If we have a session, go to Home
+        if (snapshot.hasData && snapshot.data?.session != null) {
+          return const HomeScreen();
+        }
+
+        // If no session, show Welcome Screen (which leads to Login)
+        return const WelcomeScreen();
+      },
+    );
+  }
+}
+

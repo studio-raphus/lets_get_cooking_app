@@ -1,0 +1,131 @@
+import 'package:flutter/foundation.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
+import '../services/revenue_cat_service.dart';
+
+class PremiumProvider with ChangeNotifier {
+  final RevenueCatService _revenueCat = RevenueCatService();
+
+  bool _isPremium = false;
+  bool _isLoading = false;
+  Offerings? _offerings;
+  CustomerInfo? _customerInfo;
+  bool _isRevenueCatConfigured = false;
+
+  bool get isPremium => _isPremium;
+  bool get isLoading => _isLoading;
+  Offerings? get offerings => _offerings;
+  CustomerInfo? get customerInfo => _customerInfo;
+  bool get isRevenueCatConfigured => _isRevenueCatConfigured;
+
+  // Feature limits for free tier
+  static const int freeRecipeLimit = 10;
+  static const int freeGroceryListsLimit = 3;
+
+  Future<void> initialize(String userId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // Initialize RevenueCat
+      await _revenueCat.initialize(userId);
+      _isRevenueCatConfigured = true;
+
+      // Check premium status and load offerings
+      await checkPremiumStatus();
+      await loadOfferings();
+    } catch (e) {
+      debugPrint('Error initializing RevenueCat: $e');
+      _isPremium = false;
+      _isRevenueCatConfigured = false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> checkPremiumStatus() async {
+    try {
+      _customerInfo = await _revenueCat.getCustomerInfo();
+      _isPremium = _customerInfo?.entitlements
+          .all[RevenueCatService.entitlementID]?.isActive ?? false;
+
+      debugPrint('Premium status: $_isPremium');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error checking premium status: $e');
+      _isPremium = false;
+    }
+  }
+
+  Future<void> loadOfferings() async {
+    try {
+      _offerings = await _revenueCat.getOfferings();
+      debugPrint('Offerings loaded: ${_offerings?.current?.availablePackages.length ?? 0} packages');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading offerings: $e');
+    }
+  }
+
+  Future<bool> purchasePackage(Package package) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      CustomerInfo? customerInfo = await _revenueCat.purchasePackage(package);
+      if (customerInfo != null) {
+        _customerInfo = customerInfo;
+        _isPremium = customerInfo.entitlements
+            .all[RevenueCatService.entitlementID]?.isActive ?? false;
+
+        if (_isPremium) {
+          _revenueCat.trackEvent('premium_purchased', properties: {
+            'package_id': package.identifier,
+            'price': package.storeProduct.priceString,
+          });
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Purchase error: $e');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> restorePurchases() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      CustomerInfo? customerInfo = await _revenueCat.restorePurchases();
+      if (customerInfo != null) {
+        _customerInfo = customerInfo;
+        _isPremium = customerInfo.entitlements
+            .all[RevenueCatService.entitlementID]?.isActive ?? false;
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Restore error: $e');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Feature gate helpers
+  bool canAddMoreRecipes(int currentRecipeCount) {
+    if (_isPremium) return true;
+    return currentRecipeCount < freeRecipeLimit;
+  }
+
+  bool canUseAIImport() => _isPremium;
+  bool canUseMealPlanning() => _isPremium;
+  bool canUseVideoExtraction() => _isPremium;
+  bool canCreateCollections() => _isPremium;
+}
