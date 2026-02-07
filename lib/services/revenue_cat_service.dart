@@ -4,13 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter/foundation.dart';
 
+import '../secrets.dart';
+
 class RevenueCatService {
   static final RevenueCatService _instance = RevenueCatService._internal();
   factory RevenueCatService() => _instance;
   RevenueCatService._internal();
 
-  static const String _apiKeyIOS = 'test_btAJmRGGXImrNLPsvTUsGHPMoXK';
-  static const String _apiKeyAndroid = 'test_btAJmRGGXImrNLPsvTUsGHPMoXK';
+  static const String _apiKeyIOS = Secrets.revenueCatApiKey;
+  static const String _apiKeyAndroid = Secrets.revenueCatApiKey;
 
   // Entitlement identifier from RevenueCat dashboard
   static const String entitlementID = 'Lets Get Cooking App Pro';

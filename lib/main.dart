@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lets_get_cooking_app/providers/grocery_provider.dart';
 import 'package:lets_get_cooking_app/screens/home_screen.dart';
 import 'package:lets_get_cooking_app/screens/welcome_screen.dart';
+import 'package:lets_get_cooking_app/secrets.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'providers/premium_provider.dart';
@@ -14,8 +15,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   await Supabase.initialize(
-    url: 'https://behbfpdihejxfyztzhjo.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlaGJmcGRpaGVqeGZ5enR6aGpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNjg0NjcsImV4cCI6MjA4NTk0NDQ2N30.n1UbB7FcYI8p2WPiL8L2RxYMkz9Km8A0VkVBhOTGL78',
+    url: Secrets.supabaseUrl,
+    anonKey: Secrets.supabaseAnonKey,
   );
 
   runApp(const MyApp());

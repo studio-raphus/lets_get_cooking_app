@@ -3,10 +3,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/recipe.dart';
+import '../secrets.dart';
 
 class AIRecipeExtractor {
   // NOTE: In production, this should be in environment variables or secure backend
-  static const String _anthropicApiKey = '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';
+  static const String _anthropicApiKey = Secrets.anthropicApiKey;
   static const String _apiUrl = 'https://api.anthropic.com/v1/messages';
 
   // ===========================================================================
