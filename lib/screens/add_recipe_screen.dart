@@ -80,7 +80,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
                 animation: _shaderController,
                 colors: theme.colorScheme,
               ),
-              child: Container(color: theme.colorScheme.surface.withOpacity(0.9)), // Heavy overlay for readability
+              child: Container(color: theme.colorScheme.surface.withOpacity(0.5)), // Heavy overlay for readability
             ),
           ),
 
@@ -109,7 +109,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
       case ImportType.aiLink:
         return _buildLinkImport();
       case ImportType.image:
-        return _buildImageImport(); // Or immediately trigger picker in initState if preferred
+        return _buildImageImport();
       case ImportType.manual:
         return _buildManualForm();
     }
@@ -299,8 +299,8 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
             icon: const Icon(Icons.camera),
             label: const Text('Take Photo'),
             style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.tertiary,
-              foregroundColor: theme.colorScheme.onTertiary,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
           ),
@@ -356,61 +356,124 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
     final theme = Theme.of(context);
     final recipe = _extractedRecipe!;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Recipe Found!',
-            style: theme.textTheme.headlineSmall?.copyWith(color: theme.colorScheme.primary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Card(
-            elevation: 0,
-            color: theme.colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-              side: BorderSide(color: theme.colorScheme.outlineVariant),
+    // Use a Stack to layer the gradient behind the content
+    return Stack(
+      children: [
+        // 1. Background Layer: Mesh Gradient
+        Positioned.fill(
+          child: CustomPaint(
+            painter: MeshGradientPainter(
+              animation: _shaderController, // Ensure this controller is initialized in initState
+              colors: theme.colorScheme,
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    recipe.title,
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('${recipe.ingredients.length} Ingredients', style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-                  const SizedBox(height: 4),
-                  Text(recipe.ingredients.take(3).join(', ') + (recipe.ingredients.length > 3 ? '...' : ''), style: theme.textTheme.bodyMedium),
+          ),
+        ),
 
-                  const SizedBox(height: 16),
-                  Text('Instructions', style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-                  const SizedBox(height: 4),
-                  Text('${recipe.instructions.length} steps', style: theme.textTheme.bodyMedium),
-                ],
-              ),
+        // 2. Content Layer: Scrollable Content
+        Positioned.fill(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Added a glass-like container or shadow to text for readability against gradient?
+                // For now, just bold text works well.
+                Text(
+                  'Recipe Found!',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.white.withOpacity(0.5),
+                        offset: const Offset(0, 1),
+                        blurRadius: 2,
+                      ),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                Card(
+                  elevation: 0,
+                  // Slight opacity to let the animated gradient show through vaguely
+                  color: theme.colorScheme.surface.withOpacity(0.9),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          recipe.title,
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                            '${recipe.ingredients.length} Ingredients',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary
+                            )
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                            recipe.ingredients.take(3).join(', ') +
+                                (recipe.ingredients.length > 3 ? '...' : ''),
+                            style: theme.textTheme.bodyMedium
+                        ),
+
+                        const SizedBox(height: 16),
+                        Text(
+                            'Instructions',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary
+                            )
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                            '${recipe.instructions.length} steps',
+                            style: theme.textTheme.bodyMedium
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                FilledButton(
+                  onPressed: _saveExtractedRecipe,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: Colors.white, // Ensure text is white
+                    elevation: 2,
+                  ),
+                  child: const Text('Save to Cookbook'),
+                ),
+
+                const SizedBox(height: 8),
+
+                TextButton(
+                  onPressed: () => setState(() {
+                    _extractedRecipe = null;
+                    _urlController.clear();
+                  }),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
+                  child: const Text('Discard & Try Again'),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 32),
-          FilledButton(
-            onPressed: _saveExtractedRecipe,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: theme.colorScheme.primary,
-            ),
-            child: const Text('Save to Cookbook'),
-          ),
-          TextButton(
-            onPressed: () => setState(() { _extractedRecipe = null; _urlController.clear(); }),
-            child: const Text('Discard & Try Again'),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

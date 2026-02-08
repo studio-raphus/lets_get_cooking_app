@@ -4,8 +4,8 @@ import 'dart:math' as math;
 
 class AppTheme {
   // Modern Culinary Palette (Terra Cotta & Basil)
-  static const Color seedColor = Color(0xFF9B2242);
-  static const Color secondarySeed = Color(0xFFF5E6CA);
+  static const Color seedColor = Color(0xFF2D6A4F); // Deep Forest Green
+  static const Color secondarySeed = Color(0xFFE0B97F); // Warm Wheat/Bread
 
   static ThemeData get lightTheme {
     final colorScheme = ColorScheme.fromSeed(
@@ -15,13 +15,16 @@ class AppTheme {
       surface: const Color(0xFFFFF9F0), // Warm tinted surface
     );
 
+    // Base text theme
+    final baseTextTheme = GoogleFonts.outfitTextTheme();
+
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
       brightness: Brightness.light,
 
-      // Modern Typography
-      textTheme: GoogleFonts.outfitTextTheme().copyWith(
+      // Modern Typography - Applied Primary Color to All Text
+      textTheme: baseTextTheme.copyWith(
         displayLarge: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 57),
         displayMedium: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 45),
         displaySmall: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 36),
@@ -31,23 +34,41 @@ class AppTheme {
         titleMedium: GoogleFonts.dmSans(fontWeight: FontWeight.w500, fontSize: 16),
         bodyLarge: GoogleFonts.dmSans(fontSize: 16),
         bodyMedium: GoogleFonts.dmSans(fontSize: 14),
+      ).apply(
+        bodyColor: seedColor,
+        displayColor: seedColor,
       ),
 
       // Component Themes
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: colorScheme.primary, // Primary Color Background
         centerTitle: false,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: GoogleFonts.outfit(
-          color: colorScheme.onSurface,
+          color: Colors.white,
           fontSize: 22,
           fontWeight: FontWeight.w600,
         ),
       ),
 
+      // Dominant Primary Navigation Bar
       navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: seedColor, // Red background
+        indicatorColor: secondarySeed, // Cream indicator
         labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        indicatorColor: colorScheme.secondaryContainer,
+        iconTheme: MaterialStateProperty.resolveWith((states) {
+          if (states.contains(MaterialState.selected)) {
+            return const IconThemeData(color: seedColor); // Red icon on Cream indicator
+          }
+          return const IconThemeData(color: Colors.white); // White icon on Red background
+        }),
+        labelTextStyle: MaterialStateProperty.all(
+          GoogleFonts.dmSans(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
 
       cardTheme: CardThemeData(
@@ -62,6 +83,8 @@ class AppTheme {
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
+          backgroundColor: seedColor,
+          foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: GoogleFonts.dmSans(fontWeight: FontWeight.w600),
@@ -86,7 +109,7 @@ class MeshGradientPainter extends CustomPainter {
     final paint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60);
 
     // Orb 1: Primary (Moving)
-    paint.color = colors.primaryContainer.withOpacity(0.5);
+    paint.color = colors.primary.withOpacity(0.6); // Increased opacity for dominance
     canvas.drawCircle(
       Offset(
         size.width * (0.3 + 0.2 * math.sin(t * 2 * math.pi)),

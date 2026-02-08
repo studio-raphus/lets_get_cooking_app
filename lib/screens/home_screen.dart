@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
 import '../providers/premium_provider.dart';
 import '../theme/app_theme.dart';
@@ -8,6 +9,7 @@ import 'add_recipe_screen.dart';
 import 'recipe_detail_screen.dart';
 import 'paywall_screen.dart';
 import 'meal_plan_screen.dart';
+import 'profile_screen.dart';
 import '../widgets/empty_state.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -25,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    // Animation for the "Living" background in AppBar
+    // Animation for the "Living" background in AppBar and NavBar
     _shaderController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 10),
@@ -72,34 +74,50 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             _selectedIndex = index;
           });
         },
+        physics: const NeverScrollableScrollPhysics(), // Prevent swipe conflicts
         children: [
-          _HomeTab(shaderController: _shaderController), // Pass controller
+          _HomeTab(shaderController: _shaderController),
           const _RecipesTab(),
           const MealPlanScreen(),
+          const ProfileScreen(),
         ],
       ),
       floatingActionButton: _selectedIndex < 2 ? _buildFAB() : null,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onDestinationSelected,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Home',
+
+      // ANIMATED NAVIGATION BAR
+      bottomNavigationBar: Container(
+        color: colorScheme.primary, // Base color
+        child: CustomPaint(
+          child: NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: _onDestinationSelected,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            indicatorColor: colorScheme.secondary,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.restaurant_menu),
+                selectedIcon: Icon(Icons.restaurant_menu_rounded),
+                label: 'Cookbook',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.calendar_today_outlined),
+                selectedIcon: Icon(Icons.calendar_today_rounded),
+                label: 'Plan',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_menu),
-            selectedIcon: Icon(Icons.restaurant_menu_rounded),
-            label: 'Cookbook',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined),
-            selectedIcon: Icon(Icons.calendar_today_rounded),
-            label: 'Plan',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -119,6 +137,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               _navigateToPaywall('Add More Recipes');
             }
           },
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
           icon: Icon(canAdd ? Icons.add_rounded : Icons.lock_outline_rounded),
           label: Text(canAdd ? 'Add Recipe' : 'Upgrade'),
           elevation: 4,
@@ -150,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   void _navigateToAdd(ImportType type) {
-    Navigator.pop(context); // Close sheet
+    Navigator.pop(context);
     final premium = context.read<PremiumProvider>();
 
     if (type != ImportType.manual && !premium.canUseAIImport()) {
@@ -168,13 +188,46 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 }
 
 // ==============================================================================
-// 1. HOME TAB (Modern "Explore" Style with Shader)
+// 1. HOME TAB (With Functional Search & Filter)
 // ==============================================================================
 
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   final AnimationController shaderController;
 
   const _HomeTab({required this.shaderController});
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  // Search & Filter State
+  String _searchQuery = '';
+  String? _selectedCategory;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Filter Logic
+  List<Recipe> _filterRecipes(List<Recipe> allRecipes) {
+    return allRecipes.where((recipe) {
+      // 1. Search Filter
+      final matchesSearch = _searchQuery.isEmpty ||
+          recipe.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          recipe.ingredients.any((i) => i.toString().toLowerCase().contains(_searchQuery.toLowerCase()));
+
+      // 2. Category Filter
+      // (Assuming category logic matches title/tags for now)
+      final matchesCategory = _selectedCategory == null ||
+          recipe.title.toLowerCase().contains(_selectedCategory!.toLowerCase());
+
+      return matchesSearch && matchesCategory;
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -191,35 +244,50 @@ class _HomeTab extends StatelessWidget {
           flexibleSpace: FlexibleSpaceBar(
             background: CustomPaint(
               painter: MeshGradientPainter(
-                animation: shaderController,
+                animation: widget.shaderController,
                 colors: colorScheme,
               ),
-              child: Container(color: Colors.white.withOpacity(0.1)), // Glass overlay
+              child: Container(color: Colors.white.withOpacity(0.25)),
             ),
             titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            title: Text(
+            title: const Text(
               'What\'s cooking?',
-              style: TextStyle(color: colorScheme.onSurface),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              onPressed: () { /* Navigate to settings */ },
+            // Dynamic Icon based on Subscription Status
+            Consumer<PremiumProvider>(
+              builder: (context, premium, child) {
+                return IconButton(
+                  icon: Icon(
+                    premium.isPremium ? Icons.verified : Icons.account_circle_outlined,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    // Switch to Profile Tab (index 3) via parent controller if possible,
+                    // or just let user tap the bottom bar.
+                  },
+                  tooltip: premium.isPremium ? 'Premium Chef' : 'Basic Account',
+                );
+              },
             ),
             const SizedBox(width: 8),
           ],
         ),
 
-        // Search Bar
+        // SEARCH BAR
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: _ModernSearchBar(),
+            child: _ModernSearchBar(
+              controller: _searchController,
+              onChanged: (val) => setState(() => _searchQuery = val),
+            ),
           ),
         ),
 
-        // Categories
+        // CATEGORY CHIPS
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.only(bottom: 24.0),
@@ -228,81 +296,63 @@ class _HomeTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  _FilterChip(label: 'Breakfast', icon: Icons.wb_twilight_rounded),
-                  _FilterChip(label: 'Dinner', icon: Icons.dinner_dining_rounded),
-                  _FilterChip(label: 'Healthy', icon: Icons.eco_rounded),
-                  _FilterChip(label: 'Quick', icon: Icons.timer_outlined),
-                  _FilterChip(label: 'Dessert', icon: Icons.cake_outlined),
+                  _buildFilterChip('Breakfast', Icons.wb_twilight_rounded),
+                  _buildFilterChip('Dinner', Icons.dinner_dining_rounded),
+                  _buildFilterChip('Healthy', Icons.eco_rounded),
+                  _buildFilterChip('Quick', Icons.timer_outlined),
+                  _buildFilterChip('Dessert', Icons.cake_outlined),
                 ],
               ),
             ),
           ),
         ),
 
-        // "Ready to Cook" (Horizontal)
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: _SectionHeader(title: 'Ready to Cook'),
-          ),
-        ),
-
+        // SECTION HEADER (Dynamic Title)
         SliverToBoxAdapter(
-          child: SizedBox(
-            height: 280,
-            child: Consumer<RecipeProvider>(
-              builder: (context, provider, _) {
-                if (provider.wantToCookRecipes.isEmpty) {
-                  return _CompactEmptyState(
-                    message: "Add recipes you want to cook!",
-                    icon: Icons.bookmark_add_outlined,
-                  );
-                }
-                return ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: provider.wantToCookRecipes.length,
-                  itemBuilder: (context, index) {
-                    final recipe = provider.wantToCookRecipes[index];
-                    return Container(
-                      width: 200,
-                      margin: const EdgeInsets.only(right: 12),
-                      child: RecipeCard(
-                        recipe: recipe,
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: recipe))),
-                      ),
-                    );
-                  },
-                );
-              },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: _SectionHeader(
+              title: _searchQuery.isNotEmpty || _selectedCategory != null
+                  ? 'Found Recipes'
+                  : 'Recent Collection',
             ),
           ),
         ),
 
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-        // "Recent Collection" (Grid)
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: _SectionHeader(title: 'Recent Collection'),
-          ),
-        ),
-
+        // RECIPE GRID
         Consumer<RecipeProvider>(
           builder: (context, provider, _) {
-            if (provider.recipes.isEmpty) {
-              return const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Text("Your kitchen is empty. Time to add some flavor!"),
+            // Use local filter function
+            final displayRecipes = _searchQuery.isEmpty && _selectedCategory == null
+                ? provider.recipes.take(10).toList() // Show recent by default
+                : _filterRecipes(provider.recipes);  // Show filtered
+
+            if (displayRecipes.isEmpty) {
+              if (provider.recipes.isEmpty) {
+                // Totally empty state
+                return const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Text("Your kitchen is empty. Time to add some flavor!"),
+                    ),
                   ),
-                ),
-              );
+                );
+              } else {
+                // No search results
+                return const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Text("No recipes found matching your search."),
+                    ),
+                  ),
+                );
+              }
             }
-            final recentRecipes = provider.recipes.take(10).toList();
+
             return SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               sliver: SliverGrid(
@@ -314,10 +364,15 @@ class _HomeTab extends StatelessWidget {
                 ),
                 delegate: SliverChildBuilderDelegate(
                       (context, index) => RecipeCard(
-                    recipe: recentRecipes[index],
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: recentRecipes[index]))),
+                    recipe: displayRecipes[index],
+                    onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => RecipeDetailScreen(recipe: displayRecipes[index])
+                        )
+                    ),
                   ),
-                  childCount: recentRecipes.length,
+                  childCount: displayRecipes.length,
                 ),
               ),
             );
@@ -328,10 +383,23 @@ class _HomeTab extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildFilterChip(String label, IconData icon) {
+    return _FilterChip(
+      label: label,
+      icon: icon,
+      isSelected: _selectedCategory == label,
+      onSelected: (selected) {
+        setState(() {
+          _selectedCategory = selected ? label : null;
+        });
+      },
+    );
+  }
 }
 
 // ==============================================================================
-// 2. RECIPES TAB (Preserved Functionality)
+// 2. RECIPES TAB
 // ==============================================================================
 
 class _RecipesTab extends StatelessWidget {
@@ -346,6 +414,9 @@ class _RecipesTab extends StatelessWidget {
           title: const Text('My Cookbook'),
           centerTitle: true,
           bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
             tabs: [
               Tab(text: 'Want to Cook'),
               Tab(text: 'Cooked'),
@@ -419,35 +490,33 @@ class _RecipeGridList extends StatelessWidget {
 // ==============================================================================
 
 class _ModernSearchBar extends StatelessWidget {
-  const _ModernSearchBar();
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+
+  const _ModernSearchBar({this.controller, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Material(
-      color: colorScheme.surfaceVariant.withOpacity(0.5),
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant.withOpacity(0.5),
         borderRadius: BorderRadius.circular(28),
-        onTap: () {
-          // Trigger search functionality
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(Icons.search, color: colorScheme.onSurfaceVariant),
-              const SizedBox(width: 16),
-              Text(
-                'Search recipes, ingredients...',
-                style: TextStyle(
-                  color: colorScheme.onSurfaceVariant.withOpacity(0.8),
-                  fontSize: 16,
-                ),
-              ),
-            ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          icon: Icon(Icons.search, color: colorScheme.primary),
+          hintText: 'Search recipes, ingredients...',
+          hintStyle: TextStyle(
+            color: colorScheme.primary.withOpacity(0.7),
+            fontSize: 16,
           ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
     );
@@ -457,8 +526,15 @@ class _ModernSearchBar extends StatelessWidget {
 class _FilterChip extends StatelessWidget {
   final String label;
   final IconData? icon;
+  final bool isSelected;
+  final ValueChanged<bool> onSelected;
 
-  const _FilterChip({required this.label, this.icon});
+  const _FilterChip({
+    required this.label,
+    this.icon,
+    this.isSelected = false,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -468,11 +544,21 @@ class _FilterChip extends StatelessWidget {
       padding: const EdgeInsets.only(right: 8.0),
       child: FilterChip(
         label: Text(label),
-        avatar: icon != null ? Icon(icon, size: 18) : null,
-        onSelected: (bool selected) {},
+        avatar: icon != null ? Icon(
+            icon,
+            size: 18,
+            color: isSelected ? colorScheme.onPrimary : colorScheme.primary
+        ) : null,
+        selected: isSelected,
+        onSelected: onSelected,
         backgroundColor: Colors.transparent,
-        shape: StadiumBorder(side: BorderSide(color: colorScheme.outline)),
-        labelStyle: TextStyle(color: colorScheme.onSurface),
+        selectedColor: colorScheme.primary,
+        checkmarkColor: colorScheme.onPrimary,
+        shape: StadiumBorder(side: BorderSide(color: colorScheme.primary.withOpacity(0.3))),
+        labelStyle: TextStyle(
+          color: isSelected ? colorScheme.onPrimary : colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -496,33 +582,6 @@ class _SectionHeader extends StatelessWidget {
         ),
         Icon(Icons.arrow_forward, size: 20, color: Theme.of(context).colorScheme.primary),
       ],
-    );
-  }
-}
-
-class _CompactEmptyState extends StatelessWidget {
-  final String message;
-  final IconData icon;
-
-  const _CompactEmptyState({required this.message, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.2)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 40, color: Theme.of(context).colorScheme.secondary),
-          const SizedBox(height: 8),
-          Text(message, style: Theme.of(context).textTheme.bodyMedium),
-        ],
-      ),
     );
   }
 }

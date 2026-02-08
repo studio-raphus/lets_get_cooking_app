@@ -80,14 +80,15 @@ class RecipeCard extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  // Reduced padding to prevent overflow
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         recipe.title,
                         style: theme.textTheme.titleLarge?.copyWith(
-                          fontSize: 20, // Slightly adjusted for card context
+                          fontSize: 18, // Slightly reduced to fit 2 lines safely
                           height: 1.2,
                         ),
                         maxLines: 2,

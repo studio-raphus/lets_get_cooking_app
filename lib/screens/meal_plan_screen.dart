@@ -56,7 +56,7 @@ class _MealPlanScreenState extends State<MealPlanScreen> with SingleTickerProvid
               animation: _shaderController,
               colors: theme.colorScheme,
             ),
-            child: Container(color: theme.colorScheme.surface.withOpacity(0.85)), // Soft overlay
+            child: Container(color: theme.colorScheme.primary.withOpacity(0.5)), // Soft overlay
           ),
         ),
 
