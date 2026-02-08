@@ -9,7 +9,11 @@ class Ingredient {
     required this.unit,
   });
 
-  String get displayText => '$quantity $unit $item'.trim();
+  String get displayText {
+    // Basic formatting to remove trailing .0 for whole numbers (e.g., "1.0" -> "1")
+    final q = quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString();
+    return '$q $unit $item'.trim();
+  }
 
   Map<String, dynamic> toJson() {
     return {

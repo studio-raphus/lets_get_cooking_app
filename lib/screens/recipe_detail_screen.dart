@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/recipe.dart';
-import '../models/grocery_item.dart';
+import '../models/ingredient.dart';
 import '../providers/recipe_provider.dart';
 import '../services/grocery_list_generator.dart';
 import '../theme/app_theme.dart';
@@ -277,7 +277,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
       itemCount: widget.recipe.ingredients.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        final ingredient = widget.recipe.ingredients[index];
+        final ingredient = widget.recipe.ingredients[index]; // This is an Ingredient object
+
         return Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
@@ -285,9 +286,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
             border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
           ),
           child: CheckboxListTile(
-            value: false, // State management for local checkboxes can be added if needed
+            value: false,
             onChanged: (val) {},
-            title: Text(ingredient as String, style: theme.textTheme.bodyMedium),
+            // ✅ FIXED: Use .displayText or manually interpolate strings
+            title: Text(
+              '${ingredient.quantity} ${ingredient.unit} ${ingredient.item}', // ✅ Manual formatting
+              style: theme.textTheme.bodyMedium,
+            ),
             controlAffinity: ListTileControlAffinity.leading,
             checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             activeColor: theme.colorScheme.secondary,
@@ -384,8 +389,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
     final StringBuffer shareText = StringBuffer();
     shareText.writeln(widget.recipe.title);
     shareText.writeln('\nIngredients:');
+
     for (var i in widget.recipe.ingredients) {
-      shareText.writeln('- $i');
+      shareText.writeln('- ${i.quantity} ${i.unit} ${i.item}');
     }
 
     if (widget.recipe.instructions.isNotEmpty) {

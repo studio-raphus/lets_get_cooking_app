@@ -4,14 +4,14 @@ class Recipe {
   final List<Ingredient> ingredients;
   final List<String> instructions;
   final String? sourceUrl;
-  final String sourceType; // 'url', 'video', 'image', 'manual'
+  final String sourceType;
   final String? imageUrl;
   final String? prepTime;
   final String? cookTime;
   final int? servings;
   final List<String> tags;
   final bool wantToCook;
-  final bool isCooked; // Added field
+  final bool isCooked;
   final DateTime? cookedDate;
   final DateTime createdAt;
 
@@ -28,7 +28,7 @@ class Recipe {
     this.servings,
     List<String>? tags,
     this.wantToCook = true,
-    this.isCooked = false, // Added default value
+    this.isCooked = false,
     this.cookedDate,
     DateTime? createdAt,
   })  : tags = tags ?? [],

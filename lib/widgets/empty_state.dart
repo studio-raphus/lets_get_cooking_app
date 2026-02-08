@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
-class EmptyState extends StatelessWidget {
+class EmptyState extends StatefulWidget {
   final IconData icon;
   final String title;
   final String description;
@@ -17,60 +18,91 @@ class EmptyState extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  State<EmptyState> createState() => _EmptyStateState();
+}
+
+class _EmptyStateState extends State<EmptyState> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(48),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Icon with gradient background
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                    Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-                  ],
-                ),
-                shape: BoxShape.circle,
+            // Animated Mesh Gradient Background
+            CustomPaint(
+              painter: MeshGradientPainter(
+                animation: _controller,
+                colors: theme.colorScheme,
               ),
-              child: Icon(
-                icon,
-                size: 60,
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  // We add a subtle overlay to ensure the icon pops
+                  color: Colors.white10,
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 64,
+                  // Use primary color but deeper for contrast against the mesh
+                  color: theme.colorScheme.primary.withOpacity(0.8),
+                ),
               ),
             ),
 
             const SizedBox(height: 32),
 
             Text(
-              title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              widget.title,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
               ),
               textAlign: TextAlign.center,
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
             Text(
-              description,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              widget.description,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
             ),
 
-            if (actionText != null && onActionPressed != null) ...[
+            if (widget.actionText != null && widget.onActionPressed != null) ...[
               const SizedBox(height: 32),
               FilledButton.icon(
-                onPressed: onActionPressed,
+                onPressed: widget.onActionPressed,
                 icon: const Icon(Icons.add),
-                label: Text(actionText!),
+                label: Text(widget.actionText!),
+                style: FilledButton.styleFrom(
+                  elevation: 2,
+                  shadowColor: theme.colorScheme.primary.withOpacity(0.3),
+                ),
               ),
             ],
           ],
