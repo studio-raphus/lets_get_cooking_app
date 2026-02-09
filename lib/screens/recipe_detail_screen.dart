@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/recipe.dart';
-import '../models/ingredient.dart';
+import '../models/grocery_item.dart'; // Ensure this import exists
 import '../providers/recipe_provider.dart';
 import '../services/grocery_list_generator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/grocery_list_sheet.dart';
+import 'cook_mode_screen.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -32,7 +33,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
     _tabController = TabController(length: 2, vsync: this);
     _shaderController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 12), // Slow, subtle movement for detail
+      duration: const Duration(seconds: 12),
     )..repeat(reverse: true);
   }
 
@@ -43,303 +44,283 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
     super.dispose();
   }
 
+  // --- Logic for Generating Grocery List ---
+  Future<void> _generateGroceryList() async {
+    setState(() => _isGeneratingGroceryList = true);
+
+    // Simulate a short delay for UX
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    if (!mounted) return;
+
+    // Use the generator service
+    final generator = GroceryListGenerator();
+    final items = generator.generateFromRecipes([widget.recipe]);
+
+    setState(() => _isGeneratingGroceryList = false);
+
+    // Show the Bottom Sheet with the generated list
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => GroceryListSheet(
+        groceryItems: items,        // Correct parameter name
+        recipeName: widget.recipe.title, // <--- ADDED THIS PARAMETER
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface, // Updated to surface for better theme consistency
+
+      // --- DUAL FLOATING ACTION BUTTONS ---
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 1. MAKE LIST BUTTON
+            Expanded(
+              child: FloatingActionButton.extended(
+                heroTag: "btn_make_list",
+                onPressed: _isGeneratingGroceryList ? null : _generateGroceryList,
+                backgroundColor: theme.colorScheme.secondaryContainer,
+                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                elevation: 4,
+                icon: _isGeneratingGroceryList
+                    ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onSecondaryContainer
+                    )
+                )
+                    : const Icon(Icons.shopping_cart_checkout),
+                label: Text(
+                  _isGeneratingGroceryList ? 'Generating...' : 'Make List',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 16), // Space between buttons
+
+            // 2. COOK MODE BUTTON (Visual Emphasis)
+            Expanded(
+              child: FloatingActionButton.extended(
+                heroTag: "btn_cook_mode",
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CookModeScreen(recipe: widget.recipe),
+                    ),
+                  );
+                },
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                elevation: 6,
+                icon: const Icon(Icons.play_circle_fill),
+                label: const Text(
+                    "Cook Mode",
+                    style: TextStyle(fontWeight: FontWeight.bold)
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
-            _buildSliverAppBar(innerBoxIsScrolled),
+            SliverAppBar(
+              expandedHeight: 320,
+              floating: false,
+              pinned: true,
+              backgroundColor: theme.colorScheme.surface,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                onPressed: () => Navigator.pop(context),
+              ),
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    widget.recipe.wantToCook ? Icons.favorite : Icons.favorite_border,
+                    color: widget.recipe.wantToCook ? Colors.redAccent : Colors.white,
+                    size: 28,
+                  ),
+                  onPressed: () {
+                    context.read<RecipeProvider>().toggleCookedStatus(widget.recipe.id);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.share, color: Colors.white, size: 28),
+                  onPressed: _shareRecipe,
+                ),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Recipe Image
+                    if (widget.recipe.imageUrl != null)
+                      Image.network(
+                        widget.recipe.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (c, o, s) => Container(color: AppTheme.seedColor),
+                      )
+                    else
+                      Container(color: AppTheme.seedColor),
+
+                    // Gradient Overlay for text readability
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.4),
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.8),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Title and Tags
+                    Positioned(
+                      bottom: 20,
+                      left: 20,
+                      right: 20,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              widget.recipe.sourceType.toUpperCase(),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.recipe.title,
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              color: Colors.white,
+                              fontSize: 28,
+                              height: 1.1,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ];
         },
         body: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title Block
-                  Text(
-                    widget.recipe.title,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildActionButtons(),
-                  const SizedBox(height: 24),
-                ],
-              ),
+            TabBar(
+              controller: _tabController,
+              labelColor: theme.colorScheme.primary,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+              indicatorColor: theme.colorScheme.primary,
+              tabs: const [
+                Tab(text: "Ingredients"),
+                Tab(text: "Instructions"),
+              ],
             ),
-
-            // Tabs
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                labelColor: theme.colorScheme.primary,
-                unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicator: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4),
-                  ],
-                ),
-                dividerColor: Colors.transparent,
-                padding: const EdgeInsets.all(4),
-                tabs: const [
-                  Tab(text: 'Ingredients'),
-                  Tab(text: 'Instructions'),
-                ],
-              ),
-            ),
-
-            // Tab Views
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildIngredientsList(),
-                  _buildInstructionsList(),
+                  _buildIngredientsList(theme),
+                  _buildInstructionsList(theme),
                 ],
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _generateGroceryList,
-        icon: _isGeneratingGroceryList
-            ? Container(width: 24, height: 24, padding: const EdgeInsets.all(2), child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.shopping_cart_checkout),
-        label: Text(_isGeneratingGroceryList ? 'Generating...' : 'Make List'),
-        elevation: 4,
-      ),
     );
   }
 
-  Widget _buildSliverAppBar(bool innerBoxIsScrolled) {
-    final theme = Theme.of(context);
+  // --- Helper Widgets ---
 
-    return SliverAppBar.large(
-      expandedHeight: 220.0,
-      pinned: true,
-      stretch: true,
-      backgroundColor: theme.colorScheme.surface,
-      leading: IconButton(
-        icon: CircleAvatar(
-          backgroundColor: theme.colorScheme.surface.withOpacity(0.5),
-          child: const Icon(Icons.arrow_back, color: Colors.black),
-        ),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            // 1. Mesh Gradient Base
-            CustomPaint(
-              painter: MeshGradientPainter(
-                animation: _shaderController,
-                colors: theme.colorScheme,
-              ),
-            ),
-            // 2. Image (if exists) or Icon Overlay
-            if (widget.recipe.imageUrl != null)
-              Image.network(
-                widget.recipe.imageUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (c,e,s) => const SizedBox(),
-              )
-            else
-              Center(
-                child: Icon(
-                  Icons.restaurant_menu,
-                  size: 80,
-                  color: theme.colorScheme.onPrimaryContainer.withOpacity(0.2),
-                ),
-              ),
-
-            // 3. Gradient Fade at bottom for text readability
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      theme.colorScheme.surface.withOpacity(0),
-                      theme.colorScheme.surface,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        CircleAvatar(
-          backgroundColor: theme.colorScheme.surface.withOpacity(0.5),
-          child: IconButton(
-            icon: const Icon(Icons.share, size: 20, color: Colors.black),
-            onPressed: _shareRecipe,
-          ),
-        ),
-        const SizedBox(width: 8),
-        CircleAvatar(
-          backgroundColor: theme.colorScheme.surface.withOpacity(0.5),
-          child: IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-            onPressed: _deleteRecipe,
-          ),
-        ),
-        const SizedBox(width: 16),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Consumer<RecipeProvider>(
-      builder: (context, provider, _) {
-        // Safe check for index
-        final index = provider.recipes.indexWhere((r) => r.id == widget.recipe.id);
-        if (index == -1) return const SizedBox.shrink(); // Recipe might be deleted
-
-        final currentRecipe = provider.recipes[index];
-        final theme = Theme.of(context);
-
-        return Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  final updated = currentRecipe.copyWith(wantToCook: !currentRecipe.wantToCook);
-                  provider.updateRecipe(updated);
-                },
-                icon: Icon(
-                  currentRecipe.wantToCook ? Icons.bookmark : Icons.bookmark_border,
-                  color: currentRecipe.wantToCook ? theme.colorScheme.primary : theme.colorScheme.outline,
-                ),
-                label: Text(currentRecipe.wantToCook ? 'Saved' : 'Save'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(color: currentRecipe.wantToCook ? theme.colorScheme.primary : theme.colorScheme.outline),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () {
-                  final updated = currentRecipe.copyWith(isCooked: !currentRecipe.isCooked);
-                  provider.updateRecipe(updated);
-                },
-                icon: Icon(
-                  currentRecipe.isCooked ? Icons.check_circle : Icons.check_circle_outline,
-                  color: currentRecipe.isCooked ? theme.colorScheme.onSecondary : theme.colorScheme.onPrimary,
-                ),
-                label: Text(currentRecipe.isCooked ? 'Cooked' : 'Mark Cooked'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  backgroundColor: currentRecipe.isCooked ? theme.colorScheme.secondary : theme.colorScheme.primary,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildIngredientsList() {
-    final theme = Theme.of(context);
-
-    if (widget.recipe.ingredients.isEmpty) {
-      return Center(child: Text("No ingredients listed.", style: theme.textTheme.bodyLarge));
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
-      itemCount: widget.recipe.ingredients.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final ingredient = widget.recipe.ingredients[index]; // This is an Ingredient object
-
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.4)),
-          ),
-          child: CheckboxListTile(
-            value: false,
-            onChanged: (val) {},
-            // ✅ FIXED: Use .displayText or manually interpolate strings
-            title: Text(
-              '${ingredient.quantity} ${ingredient.unit} ${ingredient.item}', // ✅ Manual formatting
-              style: theme.textTheme.bodyMedium,
-            ),
-            controlAffinity: ListTileControlAffinity.leading,
-            checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-            activeColor: theme.colorScheme.secondary,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInstructionsList() {
-    final theme = Theme.of(context);
-
-    if (widget.recipe.instructions.isEmpty) {
-      return Center(child: Text("No instructions listed.", style: theme.textTheme.bodyLarge));
-    }
-
+  Widget _buildIngredientsList(ThemeData theme) {
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Padding for FABs
+      itemCount: widget.recipe.ingredients.length,
+      itemBuilder: (context, index) {
+        final ingredient = widget.recipe.ingredients[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              Icon(Icons.circle, size: 8, color: theme.colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "${ingredient.quantity > 0 ? ingredient.quantity : ''} ${ingredient.unit} ${ingredient.item}",
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInstructionsList(ThemeData theme) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Padding for FABs
       itemCount: widget.recipe.instructions.length,
       itemBuilder: (context, index) {
-        final step = widget.recipe.instructions[index];
         return Padding(
           padding: const EdgeInsets.only(bottom: 24),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 28,
+                height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
-                  '${index + 1}',
+                  "${index + 1}",
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  step,
+                  widget.recipe.instructions[index],
                   style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
                 ),
               ),
@@ -350,99 +331,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
     );
   }
 
-  Future<void> _generateGroceryList() async {
-    setState(() {
-      _isGeneratingGroceryList = true;
-    });
-
-    try {
-      final generator = GroceryListGenerator();
-      final items = await generator.generateFromRecipes([widget.recipe]);
-
-      if (mounted) {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) => GroceryListSheet(
-            groceryItems: items,
-            recipeName: widget.recipe.title,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating list: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isGeneratingGroceryList = false;
-        });
-      }
-    }
-  }
-
   Future<void> _shareRecipe() async {
     final StringBuffer shareText = StringBuffer();
     shareText.writeln(widget.recipe.title);
     shareText.writeln('\nIngredients:');
-
-    for (var i in widget.recipe.ingredients) {
-      shareText.writeln('- ${i.quantity} ${i.unit} ${i.item}');
+    for (var ing in widget.recipe.ingredients) {
+      shareText.writeln('- ${ing.quantity} ${ing.unit} ${ing.item}');
     }
-
-    if (widget.recipe.instructions.isNotEmpty) {
-      shareText.writeln('\nInstructions:');
-      for (int i = 0; i < widget.recipe.instructions.length; i++) {
-        shareText.writeln('${i + 1}. ${widget.recipe.instructions[i]}');
-      }
+    shareText.writeln('\nInstructions:');
+    for (int i = 0; i < widget.recipe.instructions.length; i++) {
+      shareText.writeln('${i + 1}. ${widget.recipe.instructions[i]}');
     }
-
-    await Share.share(
-      shareText.toString(),
-      subject: widget.recipe.title,
-    );
-  }
-
-  void _deleteRecipe() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('Delete Recipe'),
-        content: Text('Are you sure you want to delete "${widget.recipe.title}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final recipeProvider = context.read<RecipeProvider>();
-              await recipeProvider.deleteRecipe(widget.recipe.id);
-
-              if (mounted) {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Go back to home
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Recipe deleted'),
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                );
-              }
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
+    await Share.share(shareText.toString());
   }
 }

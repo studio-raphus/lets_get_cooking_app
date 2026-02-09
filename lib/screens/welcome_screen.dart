@@ -189,7 +189,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
               icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text("START COOKING"),
+              label: const Text("START"),
             ),
           ),
         ],
