@@ -134,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           backgroundColor: Colors.transparent, // Let gradient show through
           appBar: AppBar(
             backgroundColor: Colors.transparent,
-            title: const Text('My Kitchen'),
+            title: const Text('Let\'s get cooking!'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.logout_rounded),
