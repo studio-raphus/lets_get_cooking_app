@@ -41,7 +41,6 @@ class RecipeProvider with ChangeNotifier {
 
     } catch (e) {
       _error = e.toString();
-      debugPrint('Error loading recipes: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -72,7 +71,6 @@ class RecipeProvider with ChangeNotifier {
 
       // For demo mode: if no user, just update locally
       if (user == null) {
-        debugPrint('Demo mode - updating recipe locally only');
         final index = _recipes.indexWhere((r) => r.id == recipe.id);
         if (index != -1) {
           _recipes[index] = recipe;
@@ -95,7 +93,6 @@ class RecipeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
-      debugPrint('Error updating recipe: $e');
       rethrow;
     }
   }
@@ -107,7 +104,6 @@ class RecipeProvider with ChangeNotifier {
 
       // For demo mode: if no user, just delete locally
       if (user == null) {
-        debugPrint('Demo mode - deleting recipe locally only');
         _recipes.removeWhere((r) => r.id == recipeId);
         notifyListeners();
         return;
@@ -124,7 +120,6 @@ class RecipeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
-      debugPrint('Error deleting recipe: $e');
       rethrow;
     }
   }

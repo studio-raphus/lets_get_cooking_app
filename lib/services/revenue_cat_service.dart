@@ -11,8 +11,8 @@ class RevenueCatService {
   factory RevenueCatService() => _instance;
   RevenueCatService._internal();
 
-  static const String _apiKeyIOS = Secrets.revenueCatApiKey;
-  static const String _apiKeyAndroid = Secrets.revenueCatApiKey;
+  static final String _apiKeyIOS = Secrets.revenueCatApiKey;
+  static final String _apiKeyAndroid = Secrets.revenueCatApiKey;
 
   // Entitlement identifier from RevenueCat dashboard
   static const String entitlementID = 'Lets Get Cooking App Pro';

@@ -64,7 +64,6 @@ class GroceryProvider with ChangeNotifier {
 
       // For demo mode: if no user, use empty list
       if (user == null) {
-        debugPrint('No user authenticated - using local-only mode');
         _groceryLists = [];
         _isLoading = false;
         notifyListeners();
@@ -88,7 +87,6 @@ class GroceryProvider with ChangeNotifier {
       _isLoading = false;
       _groceryLists = [];
       notifyListeners();
-      debugPrint('Error loading grocery lists: $e');
     }
   }
 
@@ -106,7 +104,6 @@ class GroceryProvider with ChangeNotifier {
 
       // For demo mode: if no user, just store locally
       if (user == null) {
-        debugPrint('Demo mode - storing grocery list locally only');
         _groceryLists.insert(0, groceryList);
         notifyListeners();
         return;
@@ -122,7 +119,6 @@ class GroceryProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
-      debugPrint('Error saving grocery list: $e');
       rethrow;
     }
   }
@@ -146,7 +142,6 @@ class GroceryProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
-      debugPrint('Error deleting grocery list: $e');
       rethrow;
     }
   }
@@ -179,7 +174,6 @@ class GroceryProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
       notifyListeners();
-      debugPrint('Error archiving grocery list: $e');
     }
   }
 }

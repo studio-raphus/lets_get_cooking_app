@@ -34,7 +34,6 @@ class PremiumProvider with ChangeNotifier {
       await checkPremiumStatus();
       await loadOfferings();
     } catch (e) {
-      debugPrint('Error initializing RevenueCat: $e');
       _isPremium = false;
       _isRevenueCatConfigured = false;
     } finally {
@@ -49,10 +48,8 @@ class PremiumProvider with ChangeNotifier {
       _isPremium = _customerInfo?.entitlements
           .all[RevenueCatService.entitlementID]?.isActive ?? false;
 
-      debugPrint('Premium status: $_isPremium');
       notifyListeners();
     } catch (e) {
-      debugPrint('Error checking premium status: $e');
       _isPremium = false;
     }
   }
@@ -60,7 +57,6 @@ class PremiumProvider with ChangeNotifier {
   Future<void> loadOfferings() async {
     try {
       _offerings = await _revenueCat.getOfferings();
-      debugPrint('Offerings loaded: ${_offerings?.current?.availablePackages.length ?? 0} packages');
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading offerings: $e');
@@ -88,7 +84,6 @@ class PremiumProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      debugPrint('Purchase error: $e');
       return false;
     } finally {
       _isLoading = false;
@@ -110,7 +105,6 @@ class PremiumProvider with ChangeNotifier {
       }
       return false;
     } catch (e) {
-      debugPrint('Restore error: $e');
       return false;
     } finally {
       _isLoading = false;

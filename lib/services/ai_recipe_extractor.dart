@@ -6,9 +6,9 @@ import '../models/recipe.dart';
 import '../secrets.dart';
 
 class AIRecipeExtractor {
-  static const String _anthropicApiKey = Secrets.anthropicApiKey; // Replace in secrets.dart
+  static final String _anthropicApiKey = Secrets.anthropicApiKey;
   static const String _apiUrl = 'https://api.anthropic.com/v1/messages';
-  static const String _model = 'claude-sonnet-4-20250514'; // Use Sonnet 4 for best results
+  static const String _model = 'claude-sonnet-4-20250514';
 
   // ===========================================================================
   // 1. EXTRACT FROM URL (Video or Web)
@@ -16,14 +16,12 @@ class AIRecipeExtractor {
 
   Future<Recipe> extractFromUrl(String url) async {
     try {
-      debugPrint('📱 Extracting recipe from URL: $url');
 
       String content = '';
       String title = 'Recipe from Link';
       String? thumbnailUrl;
 
       if (_isVideoURL(url)) {
-        debugPrint('🎥 Detected video URL');
         final videoData = await _extractVideoMetadata(url);
         title = videoData['title'] ?? 'Video Recipe';
         content = videoData['description'] ?? '';
@@ -73,8 +71,6 @@ Remember: Make it cookable! Someone should be able to follow this recipe success
           thumbnailUrl: thumbnailUrl,
         );
       } else {
-        // Regular website
-        debugPrint('🌐 Detected web URL');
         content = await _fetchWebContent(url);
 
         final prompt = '''

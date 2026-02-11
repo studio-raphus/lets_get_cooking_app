@@ -1,6 +1,7 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:lets_get_cooking_app/providers/grocery_provider.dart';
 import 'package:lets_get_cooking_app/screens/home_screen.dart';
 import 'package:lets_get_cooking_app/screens/welcome_screen.dart';
@@ -11,9 +12,14 @@ import 'providers/premium_provider.dart';
 import 'providers/recipe_provider.dart';
 import 'theme/app_theme.dart';
 
-void main() async {
+Future<void> main() async {
+  // 1. Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // 2. Load the .env file
+  await dotenv.load(fileName: ".env");
+
+  // 3. Now it is safe to access Secrets.supabaseUrl
   await Supabase.initialize(
     url: Secrets.supabaseUrl,
     anonKey: Secrets.supabaseAnonKey,
