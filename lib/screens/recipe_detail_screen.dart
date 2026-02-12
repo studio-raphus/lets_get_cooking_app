@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/recipe.dart';
-import '../models/grocery_item.dart'; // Ensure this import exists
 import '../providers/recipe_provider.dart';
 import '../services/grocery_list_generator.dart';
 import '../theme/app_theme.dart';
@@ -13,9 +12,9 @@ class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
 
   const RecipeDetailScreen({
-    Key? key,
+    super.key,
     required this.recipe,
-  }) : super(key: key);
+  });
 
   @override
   State<RecipeDetailScreen> createState() => _RecipeDetailScreenState();
@@ -24,50 +23,117 @@ class RecipeDetailScreen extends StatefulWidget {
 class _RecipeDetailScreenState extends State<RecipeDetailScreen>
     with TickerProviderStateMixin {
   late TabController _tabController;
-  late AnimationController _shaderController;
   bool _isGeneratingGroceryList = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _shaderController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
-    _shaderController.dispose();
     super.dispose();
   }
 
-  // --- Logic for Generating Grocery List ---
+  // --- Actions ---
+
+  Future<void> _confirmDelete() async {
+    final theme = Theme.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Recipe?'),
+        content: const Text('Are you sure you want to remove this recipe from your cookbook? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: theme.colorScheme.error, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      await context.read<RecipeProvider>().deleteRecipe(widget.recipe.id);
+      if (mounted) {
+        Navigator.pop(context); // Return to previous screen
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Recipe deleted')),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareRecipe() async {
+    final StringBuffer shareText = StringBuffer();
+    shareText.writeln(widget.recipe.title);
+    shareText.writeln('\nIngredients:');
+    for (var ing in widget.recipe.ingredients) {
+      shareText.writeln('- ${ing.quantity} ${ing.unit} ${ing.item}');
+    }
+    shareText.writeln('\nInstructions:');
+    for (int i = 0; i < widget.recipe.instructions.length; i++) {
+      shareText.writeln('${i + 1}. ${widget.recipe.instructions[i]}');
+    }
+    await Share.share(shareText.toString());
+  }
+
+  // --- FIXED: Grocery List Generation ---
   Future<void> _generateGroceryList() async {
     setState(() => _isGeneratingGroceryList = true);
+    try {
+      // 1. Convert Recipe Ingredients to GroceryItems
+      // FIXED: Use generateFromRecipes (plural) and pass a list
+      // Removed 'await' because the method is synchronous
+      final groceryGenerator = GroceryListGenerator();
+      final groceryItems = groceryGenerator.generateFromRecipes([widget.recipe]);
 
-    // Simulate a short delay for UX
-    await Future.delayed(const Duration(milliseconds: 600));
+      // 2. Show the Sheet
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => GroceryListSheet(initialItems: groceryItems),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating list: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGeneratingGroceryList = false);
+    }
+  }
 
-    if (!mounted) return;
+  // --- Helpers for Icon Styling ---
 
-    // Use the generator service
-    final generator = GroceryListGenerator();
-    final items = generator.generateFromRecipes([widget.recipe]);
+  ButtonStyle _circleButtonStyle(ThemeData theme) {
+    return IconButton.styleFrom(
+      backgroundColor: theme.colorScheme.surface.withOpacity(0.6),
+      foregroundColor: theme.colorScheme.onSurface,
+      padding: const EdgeInsets.all(12),
+      elevation: 2,
+    );
+  }
 
-    setState(() => _isGeneratingGroceryList = false);
-
-    // Show the Bottom Sheet with the generated list
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => GroceryListSheet(
-        groceryItems: items,        // Correct parameter name
-        recipeName: widget.recipe.title, // <--- ADDED THIS PARAMETER
-      ),
+  ButtonStyle _circleDeleteButtonStyle(ThemeData theme) {
+    return IconButton.styleFrom(
+      backgroundColor: theme.colorScheme.error,
+      foregroundColor: theme.colorScheme.onError,
+      padding: const EdgeInsets.all(12),
+      elevation: 2,
     );
   }
 
@@ -76,94 +142,42 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface, // Updated to surface for better theme consistency
-
-      // --- DUAL FLOATING ACTION BUTTONS ---
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 1. MAKE LIST BUTTON
-            Expanded(
-              child: FloatingActionButton.extended(
-                heroTag: "btn_make_list",
-                onPressed: _isGeneratingGroceryList ? null : _generateGroceryList,
-                backgroundColor: theme.colorScheme.secondaryContainer,
-                foregroundColor: theme.colorScheme.onSecondaryContainer,
-                elevation: 4,
-                icon: _isGeneratingGroceryList
-                    ? SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.onSecondaryContainer
-                    )
-                )
-                    : const Icon(Icons.shopping_cart_checkout),
-                label: Text(
-                  _isGeneratingGroceryList ? 'Generating...' : 'Make List',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 16), // Space between buttons
-
-            // 2. COOK MODE BUTTON (Visual Emphasis)
-            Expanded(
-              child: FloatingActionButton.extended(
-                heroTag: "btn_cook_mode",
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CookModeScreen(recipe: widget.recipe),
-                    ),
-                  );
-                },
-                backgroundColor: theme.colorScheme.primary,
-                foregroundColor: theme.colorScheme.onPrimary,
-                elevation: 6,
-                icon: const Icon(Icons.play_circle_fill),
-                label: const Text(
-                    "Cook Mode",
-                    style: TextStyle(fontWeight: FontWeight.bold)
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar(
               expandedHeight: 320,
-              floating: false,
               pinned: true,
               backgroundColor: theme.colorScheme.surface,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                onPressed: () => Navigator.pop(context),
+              // 1. CIRCULAR BACK BUTTON
+              leading: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                  style: _circleButtonStyle(theme),
+                ),
               ),
               actions: [
-                IconButton(
-                  icon: Icon(
-                    widget.recipe.wantToCook ? Icons.favorite : Icons.favorite_border,
-                    color: widget.recipe.wantToCook ? Colors.redAccent : Colors.white,
-                    size: 28,
+                // 2. CIRCULAR DELETE BUTTON
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 22),
+                    onPressed: _confirmDelete,
+                    style: _circleDeleteButtonStyle(theme),
+                    tooltip: 'Delete Recipe',
                   ),
-                  onPressed: () {
-                    context.read<RecipeProvider>().toggleCookedStatus(widget.recipe.id);
-                  },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.share, color: Colors.white, size: 28),
-                  onPressed: _shareRecipe,
+                // 3. CIRCULAR SHARE BUTTON
+                Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: IconButton(
+                    icon: const Icon(Icons.share, size: 22),
+                    onPressed: _shareRecipe,
+                    style: _circleButtonStyle(theme),
+                    tooltip: 'Share',
+                  ),
                 ),
               ],
               flexibleSpace: FlexibleSpaceBar(
@@ -180,14 +194,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
                     else
                       Container(color: AppTheme.seedColor),
 
-                    // Gradient Overlay for text readability
+                    // Gradient Overlay
                     DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withOpacity(0.4),
+                            Colors.black.withOpacity(0.3),
                             Colors.transparent,
                             Colors.black.withOpacity(0.8),
                           ],
@@ -234,114 +248,139 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
                   ],
                 ),
               ),
+              // TabBar pinned at the bottom of the AppBar
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Container(
+                  color: theme.colorScheme.surface,
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: theme.colorScheme.primary,
+                    unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+                    indicatorColor: theme.colorScheme.primary,
+                    tabs: const [
+                      Tab(text: "Ingredients"),
+                      Tab(text: "Instructions"),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ];
         },
-        body: Column(
+        body: TabBarView(
+          controller: _tabController,
           children: [
-            TabBar(
-              controller: _tabController,
-              labelColor: theme.colorScheme.primary,
-              unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
-              indicatorColor: theme.colorScheme.primary,
-              tabs: const [
-                Tab(text: "Ingredients"),
-                Tab(text: "Instructions"),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildIngredientsList(theme),
-                  _buildInstructionsList(theme),
-                ],
-              ),
-            ),
+            _buildIngredientsList(theme),
+            _buildInstructionsList(theme),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CookModeScreen(recipe: widget.recipe),
+            ),
+          );
+        },
+        icon: const Icon(Icons.play_arrow),
+        label: const Text("Start Cooking"),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
       ),
     );
   }
 
-  // --- Helper Widgets ---
+  // --- Content Builders ---
 
   Widget _buildIngredientsList(ThemeData theme) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Padding for FABs
-      itemCount: widget.recipe.ingredients.length,
-      itemBuilder: (context, index) {
-        final ingredient = widget.recipe.ingredients[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              Icon(Icons.circle, size: 8, color: theme.colorScheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "${ingredient.quantity > 0 ? ingredient.quantity : ''} ${ingredient.unit} ${ingredient.item}",
-                  style: theme.textTheme.bodyLarge,
-                ),
-              ),
-            ],
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // Grocery Generator Button
+        Card(
+          color: theme.colorScheme.secondaryContainer.withOpacity(0.4),
+          elevation: 0,
+          child: ListTile(
+            leading: Icon(Icons.shopping_basket_outlined, color: theme.colorScheme.primary),
+            title: const Text('Add to Grocery List'),
+            subtitle: const Text('Generate a smart shopping list'),
+            trailing: _isGeneratingGroceryList
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: _generateGroceryList,
           ),
-        );
-      },
+        ),
+        const SizedBox(height: 20),
+
+        // Ingredients List
+        ...widget.recipe.ingredients.map((ing) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.circle, size: 8, color: theme.colorScheme.secondary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: theme.textTheme.bodyLarge,
+                      children: [
+                        TextSpan(
+                          text: '${ing.quantity > 0 ? ing.quantity : ""} ${ing.unit} ',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(text: ing.item),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        const SizedBox(height: 80), // Space for FAB
+      ],
     );
   }
 
   Widget _buildInstructionsList(ThemeData theme) {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 100), // Padding for FABs
+    return ListView.separated(
+      padding: const EdgeInsets.all(20),
       itemCount: widget.recipe.instructions.length,
+      separatorBuilder: (c, i) => const SizedBox(height: 20),
       itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  "${index + 1}",
-                  style: TextStyle(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                  ),
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                "${index + 1}",
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  widget.recipe.instructions[index],
-                  style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-                ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                widget.recipe.instructions[index],
+                style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
-  }
-
-  Future<void> _shareRecipe() async {
-    final StringBuffer shareText = StringBuffer();
-    shareText.writeln(widget.recipe.title);
-    shareText.writeln('\nIngredients:');
-    for (var ing in widget.recipe.ingredients) {
-      shareText.writeln('- ${ing.quantity} ${ing.unit} ${ing.item}');
-    }
-    shareText.writeln('\nInstructions:');
-    for (int i = 0; i < widget.recipe.instructions.length; i++) {
-      shareText.writeln('${i + 1}. ${widget.recipe.instructions[i]}');
-    }
-    await Share.share(shareText.toString());
   }
 }

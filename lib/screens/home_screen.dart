@@ -412,7 +412,7 @@ class _RecipesTab extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('My Cookbook'),
-          centerTitle: true,
+          centerTitle: false,
           bottom: const TabBar(
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,

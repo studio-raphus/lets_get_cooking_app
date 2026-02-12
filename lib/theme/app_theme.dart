@@ -109,7 +109,7 @@ class MeshGradientPainter extends CustomPainter {
     final paint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 60);
 
     // Orb 1: Primary (Moving)
-    paint.color = colors.primary.withOpacity(0.7); // Increased opacity for dominance
+    paint.color = colors.primary.withOpacity(0.6); // Increased opacity for dominance
     canvas.drawCircle(
       Offset(
         size.width * (0.3 + 0.2 * math.sin(t * 2 * math.pi)),

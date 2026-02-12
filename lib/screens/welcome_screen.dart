@@ -2,10 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
-import 'package:lets_get_cooking_app/models/recipe.dart';
 import 'package:lets_get_cooking_app/screens/login_screen.dart';
-import 'package:lets_get_cooking_app/services/ai_recipe_extractor.dart';
 import 'package:lets_get_cooking_app/theme/app_theme.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -18,20 +15,29 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProviderStateMixin {
   late Ticker _ticker;
   double _time = 0.0;
-  bool _isDemoMode = false; // Tracks if we are in "Splash" or "Interactive" mode
-
-  // Input Controller
-  final TextEditingController _linkController = TextEditingController();
+  bool _showFeatures = false; // Toggles between Splash and Features list
 
   // Shader state
   ui.FragmentProgram? _program;
 
-  // AI & Logic State
-  final AIRecipeExtractor _aiService = AIRecipeExtractor();
-  bool _isProcessing = false;
-  Recipe? _generatedRecipe;
-  bool _hasUsedFreeTrial = false; // The "One Time Only" Lock
-  String? _errorMessage;
+  // Features Data (From Old Screen)
+  final List<OnboardingData> _features = [
+    OnboardingData(
+      illustration: '🍲',
+      title: 'Save Any Recipe',
+      description: 'From TikTok, Instagram, YouTube, or any recipe site. Just paste the link.',
+    ),
+    OnboardingData(
+      illustration: '📝',
+      title: 'AI-Powered Lists',
+      description: 'Turn videos instantly into organized grocery lists. No more pausing and rewinding.',
+    ),
+    OnboardingData(
+      illustration: '🥗',
+      title: 'Plan & Cook',
+      description: 'Organize meals for the week, generate one master list, and actually cook what you save.',
+    ),
+  ];
 
   @override
   void initState() {
@@ -46,7 +52,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
 
   Future<void> _loadShader() async {
     try {
-      // Ensure 'shaders/cinematic_blur.frag' is declared in pubspec.yaml
       final program = await ui.FragmentProgram.fromAsset('lib/shaders/cinematic_blur.frag');
       setState(() {
         _program = program;
@@ -59,66 +64,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
   @override
   void dispose() {
     _ticker.dispose();
-    _linkController.dispose();
     super.dispose();
   }
 
-  void _startApp() {
+  void _showFeatureCards() {
     setState(() {
-      _isDemoMode = true;
+      _showFeatures = true;
     });
-  }
-
-  Future<void> _handleGenerateAction() async {
-    // 1. If user already used the free trial, force login
-    if (_hasUsedFreeTrial) {
-      _navigateToLogin();
-      return;
-    }
-
-    // 2. Validate Input
-    final url = _linkController.text.trim();
-    if (url.isEmpty) {
-      setState(() => _errorMessage = "Please paste a link first.");
-      return;
-    }
-
-    // 3. Start Processing
-    setState(() {
-      _isProcessing = true;
-      _errorMessage = null;
-    });
-
-    try {
-      // 4. CALL REAL AI SERVICE
-      final recipe = await _aiService.extractFromUrl(url);
-
-      if (mounted) {
-        setState(() {
-          _generatedRecipe = recipe;
-          _hasUsedFreeTrial = true; // Lock the feature
-          _isProcessing = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _errorMessage = "Could not extract recipe. Try a different link.";
-        });
-      }
-    }
   }
 
   void _navigateToLogin() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.seedColor,
-      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           // 1. The Background Shader (Persistent)
@@ -140,9 +105,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
               switchInCurve: Curves.easeInOutCubic,
               switchOutCurve: Curves.easeInOutCubic,
               transitionBuilder: (child, animation) {
-                return FadeTransition(opacity: animation, child: child);
+                // Slight slide up + fade effect
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(0.0, 0.05),
+                  end: Offset.zero,
+                ).animate(animation);
+
+                return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: offsetAnimation, child: child)
+                );
               },
-              child: _isDemoMode ? _buildInteractiveMode() : _buildCinematicSplash(),
+              child: _showFeatures ? _buildFeaturesList() : _buildCinematicSplash(),
             ),
           ),
         ],
@@ -150,7 +124,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
     );
   }
 
-  // --- THE SPLASH SCREEN (Untouched as requested) ---
+  // --- 1. SPLASH SCREEN ---
   Widget _buildCinematicSplash() {
     return SizedBox.expand(
       key: const ValueKey('splash'),
@@ -162,9 +136,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
             "Let's Get\nCooking",
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                color: AppTheme.seedColor,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.5,
+              color: AppTheme.seedColor,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -1.5,
             ),
           ),
           const SizedBox(height: 20),
@@ -181,7 +155,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
           Padding(
             padding: const EdgeInsets.only(bottom: 50.0),
             child: FilledButton.icon(
-              onPressed: _startApp,
+              onPressed: _showFeatureCards,
               style: FilledButton.styleFrom(
                 backgroundColor: AppTheme.seedColor,
                 foregroundColor: Colors.white,
@@ -197,207 +171,144 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
     );
   }
 
-  // --- THE INTERACTIVE DEMO (Themed & Functional) ---
-  Widget _buildInteractiveMode() {
+  // --- 2. FEATURES LIST (HERO CARDS) ---
+  Widget _buildFeaturesList() {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
-    return Center(
-      key: const ValueKey('interactive'),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Glassmorphism Card (Using App Theme Colors)
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                // Use the Warm Surface color from AppTheme, but semi-transparent
-                  color: colorScheme.surface.withOpacity(0.85),
-                  borderRadius: BorderRadius.circular(24),
-                  // Border matches the secondary "Wheat" color
-                  border: Border.all(color: colorScheme.secondary.withOpacity(0.5), width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 30,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // --- Header ---
-                  Text(
-                    _generatedRecipe == null
-                        ? "Try It Once, Free."
-                        : "Recipe Extracted!",
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: colorScheme.primary, // Forest Green text
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _generatedRecipe == null
-                        ? "Paste a video link to see our AI generate a grocery list instantly."
-                        : "We found ${_generatedRecipe!.ingredients.length} ingredients from your link.",
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+    return Column(
+      key: const ValueKey('features'),
+      children: [
+        const SizedBox(height: 20),
+        Text(
+          "What's Inside",
+          style: theme.textTheme.headlineMedium?.copyWith(
+            color: AppTheme.seedColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 20),
 
-                  // --- Input / Result Area ---
-                  if (_generatedRecipe == null) ...[
-                    // Input Field (Themed)
-                    TextField(
-                      controller: _linkController,
-                      style: TextStyle(color: colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        hintText: "Paste TikTok or YouTube link...",
-                        hintStyle: TextStyle(color: colorScheme.onSurface.withOpacity(0.5)),
-                        filled: true,
-                        fillColor: colorScheme.surface, // Solid warm background for input
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.outline.withOpacity(0.3)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.paste, color: colorScheme.primary),
-                          onPressed: () async {
-                            // Simple clipboard logic would go here
-                            // For now, user can type or paste manually
-                            final data = await Clipboard.getData('text/plain');
-                            if (data?.text != null) {
-                              _linkController.text = data!.text!;
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                    if (_errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          _errorMessage!,
-                          style: TextStyle(color: colorScheme.error, fontSize: 12),
-                        ),
-                      ),
+        // Scrollable Card List
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            itemCount: _features.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final data = _features[index];
+              return _buildHeroCard(data);
+            },
+          ),
+        ),
 
-                    const SizedBox(height: 24),
-
-                    // Action Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _isProcessing ? null : _handleGenerateAction,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: colorScheme.primary, // Forest Green
-                          foregroundColor: colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: _isProcessing
-                            ? SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: colorScheme.onPrimary, strokeWidth: 2))
-                            : const Text("GENERATE LIST", style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ] else ...[
-                    // --- Result View (Real Data) ---
-                    Container(
-                      height: 200, // Limit height
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colorScheme.outlineVariant),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(0),
-                          itemCount: _generatedRecipe!.ingredients.length,
-                          separatorBuilder: (_, __) => Divider(height: 1, color: colorScheme.outlineVariant),
-                          itemBuilder: (context, index) {
-                            final ing = _generatedRecipe!.ingredients[index];
-                            return ListTile(
-                              dense: true,
-                              visualDensity: VisualDensity.compact,
-                              leading: Icon(Icons.check_circle, color: colorScheme.secondary, size: 20),
-                              title: Text(
-                                ing.item,
-                                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              subtitle: Text(
-                                "${ing.quantity} ${ing.unit}",
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      "Want to save this list?",
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // "Create Account" Button (High Emphasis)
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _navigateToLogin,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text("CREATE FREE ACCOUNT TO SAVE"),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+        // Bottom Action
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withOpacity(0.0),
+                Colors.white.withOpacity(0.5),
+              ],
             ),
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _navigateToLogin,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.seedColor,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text("CREATE ACCOUNT", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-            // Skip button
-            if (_generatedRecipe == null)
-              Padding(
-                padding: const EdgeInsets.only(top: 24),
-                child: TextButton(
-                  onPressed: _navigateToLogin,
-                  child: Text(
-                      "Skip to Login",
-                      style: TextStyle(
-                          color: AppTheme.seedColor, // Keeping white to contrast with Shader background
-                          fontWeight: FontWeight.w100
-                      )
+  Widget _buildHeroCard(OnboardingData data) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(0.8), // Glassmorphic
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.seedColor.withOpacity(0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Illustration / Icon
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              data.illustration,
+              style: const TextStyle(fontSize: 32),
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Text Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  data.title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.seedColor,
+                    fontSize: 20,
                   ),
                 ),
-              ),
-          ],
-        ),
+                const SizedBox(height: 8),
+                Text(
+                  data.description,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// --- The Painter that draws the Shader ---
+// --- DATA MODEL ---
+class OnboardingData {
+  final String illustration;
+  final String title;
+  final String description;
+
+  OnboardingData({
+    required this.illustration,
+    required this.title,
+    required this.description,
+  });
+}
+
+// --- SHADER PAINTER ---
 class ShaderPainter extends CustomPainter {
   final ui.FragmentProgram program;
   final double time;
@@ -407,12 +318,9 @@ class ShaderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final shader = program.fragmentShader();
-
-    // Uniforms: float uTime, vec2 uResolution (width, height)
     shader.setFloat(0, time);
     shader.setFloat(1, size.width);
     shader.setFloat(2, size.height);
-
     canvas.drawRect(
       Offset.zero & size,
       Paint()..shader = shader,
@@ -424,13 +332,3 @@ class ShaderPainter extends CustomPainter {
     return oldDelegate.time != time || oldDelegate.program != program;
   }
 }
-
-// Helper for clipboard access if not importing services
-// (Standard Flutter services allow this without extra package in newer versions,
-// but for robustness in demo, the manual paste is safer)
-class Clipboard {
-  static Future<ClipboardData?> getData(String format) async {
-    return null; // Placeholder: Add 'package:flutter/services.dart' to imports for real clipboard
-  }
-}
-class ClipboardData { final String? text; ClipboardData({this.text}); }
