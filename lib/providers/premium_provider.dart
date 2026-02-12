@@ -29,9 +29,13 @@ class PremiumProvider with ChangeNotifier {
       await _revenueCat.initialize(userId);
       _isRevenueCatConfigured = true;
 
-      await checkPremiumStatus();
-      await loadOfferings();
+      // Run both in parallel for faster startup.
+      await Future.wait([
+        checkPremiumStatus(),
+        loadOfferings(),
+      ]);
     } catch (e) {
+      debugPrint('PremiumProvider.initialize error: $e');
       _isPremium = false;
       _isRevenueCatConfigured = false;
     } finally {
@@ -40,12 +44,17 @@ class PremiumProvider with ChangeNotifier {
     }
   }
 
+  Future<void> forceRefresh(String userId) async {
+    _isRevenueCatConfigured = false;
+    await initialize(userId);
+  }
+
   Future<void> checkPremiumStatus() async {
     try {
       _customerInfo = await _revenueCat.getCustomerInfo();
       _isPremium = _customerInfo?.entitlements
-          .all[RevenueCatService.entitlementID]?.isActive ?? false;
-
+          .all[RevenueCatService.entitlementID]?.isActive ??
+          false;
       notifyListeners();
     } catch (e) {
       _isPremium = false;
@@ -57,7 +66,7 @@ class PremiumProvider with ChangeNotifier {
       _offerings = await _revenueCat.getOfferings();
       notifyListeners();
     } catch (e) {
-      debugPrint('Error loading offerings: $e');
+      debugPrint('PremiumProvider.loadOfferings error: $e');
     }
   }
 
@@ -70,7 +79,8 @@ class PremiumProvider with ChangeNotifier {
       if (customerInfo != null) {
         _customerInfo = customerInfo;
         _isPremium = customerInfo.entitlements
-            .all[RevenueCatService.entitlementID]?.isActive ?? false;
+            .all[RevenueCatService.entitlementID]?.isActive ??
+            false;
 
         if (_isPremium) {
           _revenueCat.trackEvent('premium_purchased', properties: {
@@ -98,7 +108,8 @@ class PremiumProvider with ChangeNotifier {
       if (customerInfo != null) {
         _customerInfo = customerInfo;
         _isPremium = customerInfo.entitlements
-            .all[RevenueCatService.entitlementID]?.isActive ?? false;
+            .all[RevenueCatService.entitlementID]?.isActive ??
+            false;
         return true;
       }
       return false;

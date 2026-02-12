@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/premium_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -13,7 +14,8 @@ class PaywallScreen extends StatefulWidget {
   State<PaywallScreen> createState() => _PaywallScreenState();
 }
 
-class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProviderStateMixin {
+class _PaywallScreenState extends State<PaywallScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _shaderController;
 
   @override
@@ -23,12 +25,35 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
       vsync: this,
       duration: const Duration(seconds: 8),
     )..repeat(reverse: true);
+
+    // FIX: As soon as the paywall opens, check if RevenueCat is ready.
+    // If not (e.g. first session cold-start race condition), force a refresh.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureRevenueCatReady();
+    });
   }
 
   @override
   void dispose() {
     _shaderController.dispose();
     super.dispose();
+  }
+
+  /// If RevenueCat isn't configured yet (or offerings are missing),
+  /// re-initialize using the current Supabase user's ID.
+  Future<void> _ensureRevenueCatReady() async {
+    final premium = context.read<PremiumProvider>();
+
+    final needsRefresh = !premium.isRevenueCatConfigured ||
+        premium.offerings == null ||
+        premium.offerings!.current == null;
+
+    if (!needsRefresh) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    await premium.forceRefresh(user.id);
   }
 
   @override
@@ -59,17 +84,30 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
           SafeArea(
             child: Consumer<PremiumProvider>(
               builder: (context, premiumProvider, _) {
+                // Show a loading spinner while RevenueCat is initialising.
                 if (premiumProvider.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading offers…'),
+                      ],
+                    ),
+                  );
                 }
 
+                // RevenueCat is ready and we have a current offering.
                 if (premiumProvider.isRevenueCatConfigured &&
                     premiumProvider.offerings != null &&
                     premiumProvider.offerings!.current != null) {
                   return _buildRealPaywall(context, premiumProvider);
-                } else {
-                  return _buildDemoPaywall(context, premiumProvider);
                 }
+
+                // RevenueCat finished loading but still has no offering —
+                // show a retry option instead of a dead "Store not connected" wall.
+                return _buildRetryPaywall(context, premiumProvider);
               },
             ),
           ),
@@ -78,10 +116,14 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildRealPaywall(BuildContext context, PremiumProvider premiumProvider) {
+  // ─────────────────────────────────────────────────────────────────────────
+  // REAL PAYWALL (RevenueCat configured & offerings available)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _buildRealPaywall(
+      BuildContext context, PremiumProvider premiumProvider) {
     final offering = premiumProvider.offerings!.current!;
     final packages = offering.availablePackages;
-    final theme = Theme.of(context);
 
     return Column(
       children: [
@@ -95,14 +137,13 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
                 const SizedBox(height: 40),
                 _buildBenefitsList(context),
                 const SizedBox(height: 40),
-
-                // Package Selection
                 ...packages.map((package) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: _buildPackageCard(context, package, () {
                     _purchasePackage(context, premiumProvider, package);
                   }),
                 )),
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -112,7 +153,12 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildDemoPaywall(BuildContext context, PremiumProvider premiumProvider) {
+  // ─────────────────────────────────────────────────────────────────────────
+  // RETRY PAYWALL (RevenueCat loaded but offerings unavailable)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Widget _buildRetryPaywall(
+      BuildContext context, PremiumProvider premiumProvider) {
     final theme = Theme.of(context);
 
     return Padding(
@@ -125,37 +171,55 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
           _buildBenefitsList(context),
           const Spacer(),
 
+          // Retry banner — actionable, not a dead end.
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.errorContainer.withOpacity(0.8),
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.8),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.3),
+              ),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: theme.colorScheme.error),
+                Icon(Icons.wifi_off_rounded,
+                    color: theme.colorScheme.onSurfaceVariant),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Store not connected. Please configure RevenueCat.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onErrorContainer),
+                    'Could not load offers. Check your connection and try again.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
+          const SizedBox(height: 16),
+
+          // Retry button
+          FilledButton.icon(
+            onPressed: () => _ensureRevenueCatReady(),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try Again'),
             style: FilledButton.styleFrom(
-              minimumSize: const Size(double.infinity, 56),
+              minimumSize: const Size(double.infinity, 52),
             ),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
             child: const Text('Go Back'),
           ),
         ],
       ),
     );
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SHARED WIDGETS
+  // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
@@ -167,7 +231,8 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
             color: theme.colorScheme.primaryContainer,
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.auto_awesome, size: 40, color: theme.colorScheme.primary),
+          child: Icon(Icons.auto_awesome,
+              size: 40, color: theme.colorScheme.primary),
         ),
         const SizedBox(height: 24),
         Text(
@@ -197,20 +262,25 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
     return Column(
       children: [
         _buildBenefitRow(context, 'Unlimited Recipes', Icons.all_inclusive),
-        _buildBenefitRow(context, 'AI Link Import (Insta/TikTok)', Icons.link),
-        _buildBenefitRow(context, 'Photo Scan to Recipe', Icons.camera_alt),
-        _buildBenefitRow(context, 'Smart Grocery Lists', Icons.shopping_cart_checkout),
+        _buildBenefitRow(
+            context, 'AI Link Import (Insta/TikTok)', Icons.link),
+        _buildBenefitRow(
+            context, 'Photo Scan to Recipe', Icons.camera_alt),
+        _buildBenefitRow(
+            context, 'Smart Grocery Lists', Icons.shopping_cart_checkout),
       ],
     );
   }
 
-  Widget _buildBenefitRow(BuildContext context, String text, IconData icon) {
+  Widget _buildBenefitRow(
+      BuildContext context, String text, IconData icon) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(Icons.check_circle, color: theme.colorScheme.primary, size: 24),
+          Icon(Icons.check_circle,
+              color: theme.colorScheme.primary, size: 24),
           const SizedBox(width: 16),
           Text(text, style: theme.textTheme.bodyLarge),
         ],
@@ -218,13 +288,14 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildPackageCard(BuildContext context, Package package, VoidCallback onTap) {
+  Widget _buildPackageCard(
+      BuildContext context, Package package, VoidCallback onTap) {
     final theme = Theme.of(context);
     final product = package.storeProduct;
 
     return Card(
       elevation: 0,
-      color: theme.colorScheme.surface.withOpacity(0.8), // Semi-transparent
+      color: theme.colorScheme.surface.withOpacity(0.8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
         side: BorderSide(color: theme.colorScheme.primary, width: 2),
@@ -242,13 +313,16 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
                   children: [
                     Text(
                       product.title,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       product.description,
                       style: theme.textTheme.bodySmall,
-                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -265,14 +339,19 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      'BEST VALUE', // You can add logic to toggle this
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.colorScheme.onPrimaryContainer),
+                      'BEST VALUE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
                     ),
                   ),
                 ],
@@ -284,28 +363,38 @@ class _PaywallScreenState extends State<PaywallScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildRestoreButton(BuildContext context, PremiumProvider provider) {
+  Widget _buildRestoreButton(
+      BuildContext context, PremiumProvider provider) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: TextButton(
         onPressed: () async {
-          await provider.restorePurchases();
+          final success = await provider.restorePurchases();
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Purchases restored')),
+              SnackBar(
+                content: Text(success
+                    ? '✅ Purchases restored!'
+                    : 'No previous purchases found.'),
+                backgroundColor: success
+                    ? Colors.green
+                    : Theme.of(context).colorScheme.surfaceVariant,
+              ),
             );
+            if (success) Navigator.pop(context);
           }
         },
         child: Text(
           'Restore Purchases',
-          style: TextStyle(color: Theme.of(context).colorScheme.outline),
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.outline),
         ),
       ),
     );
   }
 
-  Future<void> _purchasePackage(
-      BuildContext context, PremiumProvider provider, Package package) async {
+  Future<void> _purchasePackage(BuildContext context,
+      PremiumProvider provider, Package package) async {
     final success = await provider.purchasePackage(package);
     if (context.mounted) {
       if (success) {
