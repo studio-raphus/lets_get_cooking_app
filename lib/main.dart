@@ -75,7 +75,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Future<void> _initializeData(String userId) async {
-    // Reload providers with the real User ID
     context.read<PremiumProvider>().initialize(userId);
     context.read<RecipeProvider>().loadRecipes();
   }
@@ -85,12 +84,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return StreamBuilder<AuthState>(
       stream: _supabase.auth.onAuthStateChange,
       builder: (context, snapshot) {
-        // If we have a session, go to Home
         if (snapshot.hasData && snapshot.data?.session != null) {
           return const HomeScreen();
         }
 
-        // If no session, show Welcome Screen (which leads to Login)
         return const WelcomeScreen();
       },
     );

@@ -18,8 +18,6 @@ class RevenueCatService {
   static const String entitlementID = 'Lets Get Cooking App Pro';
 
   Future<void> initialize(String userId) async {
-    await Purchases.setLogLevel(LogLevel.debug); // Remove in production
-
     PurchasesConfiguration configuration;
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       configuration = PurchasesConfiguration(_apiKeyIOS)..appUserID = userId;
@@ -89,7 +87,6 @@ class RevenueCatService {
 
   // Track custom events for analytics
   void trackEvent(String eventName, {Map<String, dynamic>? properties}) {
-    // You can integrate with your analytics platform here
     debugPrint('Event tracked: $eventName with properties: $properties');
   }
 

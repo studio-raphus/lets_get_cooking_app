@@ -26,11 +26,9 @@ class PremiumProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Initialize RevenueCat
       await _revenueCat.initialize(userId);
       _isRevenueCatConfigured = true;
 
-      // Check premium status and load offerings
       await checkPremiumStatus();
       await loadOfferings();
     } catch (e) {
