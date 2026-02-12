@@ -34,6 +34,10 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
   final _notesController = TextEditingController();
   final List<TextEditingController> _ingredientControllers = [];
 
+  // Categorization State
+  final List<String> _availableTags = ['Breakfast', 'Lunch', 'Dinner', 'Dessert', 'Snack', 'Healthy', 'Quick', 'Vegan'];
+  final Set<String> _selectedTags = {};
+
   // State Variables
   bool _isLoading = false;
   String? _errorMessage;
@@ -143,7 +147,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
   }
 
   String _getTitle() {
-    if (_extractedRecipe != null) return 'Review Recipe'; // Update title on review
+    if (_extractedRecipe != null) return 'Review Recipe';
     switch (widget.importType) {
       case ImportType.aiLink: return 'Import Link';
       case ImportType.image: return 'Scan Recipe';
@@ -152,7 +156,6 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
   }
 
   Widget _buildContent() {
-    // Global check: if we have extracted data, show the review screen regardless of import type
     if (_extractedRecipe != null) {
       return _buildReviewScreen();
     }
@@ -228,7 +231,6 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
     final url = _urlController.text.trim();
     if (url.isEmpty) return;
 
-    // Close keyboard
     FocusScope.of(context).unfocus();
 
     setState(() { _isLoading = true; _errorMessage = null; });
@@ -240,7 +242,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
     }
   }
 
-  // --- 2. Manual Form UI ---
+  // --- 2. Manual Form UI (Fully Features) ---
   Widget _buildManualForm() {
     final theme = Theme.of(context);
     final isLimitReached = _isBasicPlan && _ingredientControllers.length >= 3;
@@ -252,7 +254,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Title
+            // A. Title Input
             TextFormField(
               controller: _titleController,
               textAlign: TextAlign.center,
@@ -275,7 +277,45 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
 
             const SizedBox(height: 20),
 
-            // Ingredients
+            // B. Categories / Tags (NEW)
+            _buildGlassCard(
+              title: 'Categories',
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableTags.map((tag) {
+                  final isSelected = _selectedTags.contains(tag);
+                  return FilterChip(
+                    label: Text(tag),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedTags.add(tag);
+                        } else {
+                          _selectedTags.remove(tag);
+                        }
+                      });
+                    },
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    selectedColor: theme.colorScheme.primaryContainer,
+                    checkmarkColor: theme.colorScheme.primary,
+                    labelStyle: TextStyle(
+                      color: isSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide.none,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // C. Ingredients
             _buildGlassCard(
               title: 'Ingredients',
               trailing: _isBasicPlan
@@ -349,7 +389,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
 
             const SizedBox(height: 20),
 
-            // Instructions
+            // D. Instructions
             _buildGlassCard(
               title: 'Preparation & Notes',
               child: TextFormField(
@@ -448,7 +488,6 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
 
   // --- 3. Image Import UI ---
   Widget _buildImageImport() {
-    // Note: The global check at top of _buildContent handles the state switch now.
     return Center(
       child: _buildGlassContainer(
         padding: const EdgeInsets.all(32),
@@ -491,7 +530,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
     }
   }
 
-  // --- Review Screen (Fixed) ---
+  // --- Review Screen ---
   Widget _buildReviewScreen() {
     final recipe = _extractedRecipe!;
     return SingleChildScrollView(
@@ -615,6 +654,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen> with SingleTickerProv
             : [],
         sourceType: 'manual',
         wantToCook: true,
+        tags: _selectedTags.toList(), // SAVE CATEGORIES
         createdAt: DateTime.now(),
       );
 

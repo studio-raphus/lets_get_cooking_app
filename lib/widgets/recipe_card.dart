@@ -1,16 +1,16 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
-import '../theme/app_theme.dart';
 
 class RecipeCard extends StatelessWidget {
   final Recipe recipe;
   final VoidCallback onTap;
 
   const RecipeCard({
-    Key? key,
+    super.key,
     required this.recipe,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,203 +18,160 @@ class RecipeCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      height: 220,
       decoration: BoxDecoration(
-        color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withOpacity(0.5),
-          width: 1,
-        ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.shadow.withOpacity(0.05),
-            blurRadius: 20,
+            color: colorScheme.shadow.withOpacity(0.08),
+            blurRadius: 15,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Image area
-              Expanded(
-                flex: 3,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    recipe.imageUrl != null
-                        ? Image.network(
-                      recipe.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const _AnimatedPlaceholder();
-                      },
-                    )
-                        : const _AnimatedPlaceholder(),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. Background Image
+            recipe.imageUrl != null
+                ? Image.network(
+              recipe.imageUrl!,
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, s) => Container(color: colorScheme.surfaceContainerHighest),
+            )
+                : Container(
+              color: colorScheme.secondaryContainer,
+              child: Icon(Icons.restaurant, size: 64, color: colorScheme.onSecondaryContainer),
+            ),
 
-                    // Gradient overlay for text legibility if needed,
-                    // or just subtle darkening
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.3),
-                          ],
-                          stops: const [0.7, 1.0],
-                        ),
-                      ),
-                    ),
+            // 2. Gradient Overlay (for readability)
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.1),
+                    Colors.black.withOpacity(0.7),
                   ],
+                  stops: const [0.5, 0.7, 1.0],
                 ),
               ),
+            ),
 
-              // Content
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  // Reduced padding to prevent overflow
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        recipe.title,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontSize: 18, // Slightly reduced to fit 2 lines safely
-                          height: 1.2,
+            // 3. Ripple Effect for Touch
+            Material(
+              color: Colors.transparent,
+              child: InkWell(onTap: onTap),
+            ),
+
+            // 4. Top Badges (Cook time / Tags)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Time Badge
+                  if (recipe.cookTime != null)
+                    _buildGlassBadge(
+                        context,
+                        icon: Icons.timer_outlined,
+                        label: recipe.cookTime!
+                    ),
+
+                  // Primary Tag Badge
+                  if (recipe.tags.isNotEmpty)
+                    _buildGlassBadge(
+                        context,
+                        label: recipe.tags.first.toUpperCase(),
+                        isAccent: true
+                    ),
+                ],
+              ),
+            ),
+
+            // 5. Bottom Info (Glassmorphism Panel)
+            Positioned(
+              bottom: 12,
+              left: 12,
+              right: 12,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.white.withOpacity(0.15), // Frosted glass
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          recipe.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-
-                      const Spacer(),
-
-                      // Metadata Row
-                      Row(
-                        children: [
-                          if (recipe.prepTime != null || recipe.cookTime != null) ...[
-                            Icon(
-                              Icons.schedule_rounded,
-                              size: 16,
-                              color: colorScheme.primary,
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.local_dining, size: 14, color: Colors.white.withOpacity(0.8)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${recipe.ingredients.length} Ingredients',
+                              style: theme.textTheme.bodySmall?.copyWith(color: Colors.white.withOpacity(0.8)),
                             ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _getTimeText(),
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ] else ...[
-                            Icon(
-                              Icons.restaurant_menu_rounded,
-                              size: 16,
-                              color: colorScheme.secondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '${recipe.ingredients.length} ingredients',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                            const Spacer(),
+                            if (recipe.isCooked)
+                              Icon(Icons.check_circle, size: 16, color: colorScheme.secondary)
                           ],
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  String _getTimeText() {
-    final parts = <String>[];
-    if (recipe.prepTime != null) parts.add(recipe.prepTime!);
-    if (recipe.cookTime != null) parts.add(recipe.cookTime!);
-    return parts.join(' • ');
-  }
-}
-
-// Helper widget to handle the animation just for the placeholder
-// This prevents the entire card from needing to be Stateful
-class _AnimatedPlaceholder extends StatefulWidget {
-  const _AnimatedPlaceholder();
-
-  @override
-  State<_AnimatedPlaceholder> createState() => _AnimatedPlaceholderState();
-}
-
-class _AnimatedPlaceholderState extends State<_AnimatedPlaceholder>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    // Randomized start time so cards don't pulse in perfect unison
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..value = DateTime.now().millisecond / 1000
-      ..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        CustomPaint(
-          painter: MeshGradientPainter(
-            animation: _controller,
-            colors: colorScheme,
+  Widget _buildGlassBadge(BuildContext context, {IconData? icon, required String label, bool isAccent = false}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          color: isAccent
+              ? Theme.of(context).colorScheme.primary.withOpacity(0.8)
+              : Colors.black.withOpacity(0.4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.white, size: 12),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
         ),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.surface.withOpacity(0.2),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white24),
-            ),
-            child: Icon(
-              Icons.restaurant_rounded,
-              size: 32,
-              color: colorScheme.onPrimaryContainer,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
