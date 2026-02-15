@@ -25,8 +25,7 @@ android {
     }
 
     kotlinOptions {
-        // Updated to remove deprecation warning
-        jvmTarget = "17"
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17.target
     }
 
     defaultConfig {
@@ -57,8 +56,13 @@ android {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
