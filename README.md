@@ -2,12 +2,6 @@
 
 Turn recipe inspiration into action! AI-powered app that generates grocery lists from TikTok, Instagram, YouTube videos, and recipe URLs.
 
-## 🎯 Contest Brief
-
-**Influencer:** Eitan  
-**Problem:** People save recipes they never cook  
-**Solution:** Turn "I saw this" into "it's on the table" with AI-powered grocery lists
-
 ## ✨ Core Features
 
 ### MVP Features
