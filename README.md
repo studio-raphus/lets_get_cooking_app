@@ -1,4 +1,4 @@
-# Let's Get Cooking App - Shipyard Creator Contest MVP
+# Let's Get Cooking App
 
 Turn recipe inspiration into action! AI-powered app that generates grocery lists from TikTok, Instagram, YouTube videos, and recipe URLs.
 
